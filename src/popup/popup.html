@@ -10,10 +10,24 @@
   <div class="container">
     <h1>🎥 Tab Recorder</h1>
     <div class="status" id="status">Ready to record</div>
+    
+    <div class="input-group">
+      <label for="filenameInput">Recording Name:</label>
+      <input
+        type="text"
+        id="filenameInput"
+        placeholder="my-recording"
+        maxlength="100"
+      >
+    </div>
+    
     <div class="recording-indicator" id="recordingIndicator">
       <div class="recording-dot"></div>
       <span>Recording...</span>
     </div>
+    
+    <div class="timer" id="timer">00:00:00</div>
+    
     <button id="startBtn">Start Recording</button>
     <button id="stopBtn" disabled>Stop Recording</button>
   </div>

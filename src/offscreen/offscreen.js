@@ -1,13 +1,16 @@
-let mediaRecorder = null;
-let recordedChunks = [];
-let stream = null;
+const activeRecorders = new Map();
+const activeStreams = new Map();
+const recordedChunksMap = new Map();
+const customFilenames = new Map();
 
 chrome.runtime.onMessage.addListener(async (message) => {
   if (message.target !== 'offscreen') return;
 
   if (message.type === 'start-recording') {
+    const tabId = message.tabId;
+    
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           mandatory: {
             chromeMediaSource: 'tab',
@@ -22,6 +25,8 @@ chrome.runtime.onMessage.addListener(async (message) => {
         }
       });
 
+      activeStreams.set(tabId, stream);
+
       const output = new AudioContext();
       const source = output.createMediaStreamSource(stream);
       source.connect(output.destination);
@@ -32,62 +37,89 @@ chrome.runtime.onMessage.addListener(async (message) => {
         options.mimeType = 'video/webm';
       }
 
-      mediaRecorder = new MediaRecorder(stream, options);
-      recordedChunks = [];
+      const mediaRecorder = new MediaRecorder(stream, options);
+      activeRecorders.set(tabId, mediaRecorder);
+      recordedChunksMap.set(tabId, []);
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          recordedChunks.push(event.data);
+          const chunks = recordedChunksMap.get(tabId);
+          if (chunks) {
+            chunks.push(event.data);
+          }
         }
       };
 
       mediaRecorder.onstop = async () => {
-        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const chunks = recordedChunksMap.get(tabId) || [];
+        const blob = new Blob(chunks, { type: 'video/webm' });
         
         const now = new Date();
         const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, -5);
-        const filename = `tab-recording-${timestamp}.webm`;
+        const customName = customFilenames.get(tabId);
+        
+        let filename;
+        if (customName) {
+          filename = `${customName}-${timestamp}.webm`;
+        } else {
+          filename = `tab-${tabId}-recording-${timestamp}.webm`;
+        }
 
         try {
           const reader = new FileReader();
           reader.onloadend = () => {
             chrome.runtime.sendMessage({
               type: 'save-recording',
+              tabId: tabId,
               data: reader.result,
               filename: filename
             }).catch(() => {});
           };
           reader.readAsDataURL(blob);
 
+          const stream = activeStreams.get(tabId);
           if (stream) {
             stream.getTracks().forEach(track => track.stop());
-            stream = null;
+            activeStreams.delete(tabId);
           }
         } catch (error) {
           chrome.runtime.sendMessage({
             type: 'recording-error',
+            tabId: tabId,
             error: error.message
           }).catch(() => {});
         } finally {
-          recordedChunks = [];
+          recordedChunksMap.delete(tabId);
+          activeRecorders.delete(tabId);
+          customFilenames.delete(tabId);
         }
       };
 
       mediaRecorder.onerror = (event) => {
-        chrome.runtime.sendMessage({ 
-          type: 'recording-error', 
-          error: event.error.message 
+        chrome.runtime.sendMessage({
+          type: 'recording-error',
+          tabId: tabId,
+          error: event.error.message
         }).catch(() => {});
       };
 
       mediaRecorder.start();
     } catch (error) {
-      chrome.runtime.sendMessage({ 
-        type: 'recording-error', 
-        error: error.message 
+      chrome.runtime.sendMessage({
+        type: 'recording-error',
+        tabId: tabId,
+        error: error.message
       }).catch(() => {});
     }
   } else if (message.type === 'stop-recording') {
+    const tabId = message.tabId;
+    
+    if (message.customFilename) {
+      customFilenames.set(tabId, message.customFilename);
+    }
+    
+    const mediaRecorder = activeRecorders.get(tabId);
+    
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
       mediaRecorder.stop();
     }

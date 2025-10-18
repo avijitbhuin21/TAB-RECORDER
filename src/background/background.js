@@ -1,34 +1,36 @@
-let isRecording = false;
-let recordingTabId = null;
+const activeRecordings = new Map();
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'start-recording') {
-    handleStartRecording(message.tabId, sendResponse);
+    handleStartRecording(message.tabId, message.customFilename, sendResponse);
     return true;
   } else if (message.type === 'stop-recording') {
-    handleStopRecording(sendResponse);
+    handleStopRecording(message.tabId, sendResponse);
     return true;
   } else if (message.type === 'get-recording-state') {
-    sendResponse({ isRecording, recordingTabId });
+    const isRecording = activeRecordings.has(message.tabId);
+    sendResponse({ isRecording, tabId: message.tabId });
     return true;
   } else if (message.type === 'save-recording') {
-    handleSaveRecording(message.data, message.filename);
+    handleSaveRecording(message.tabId, message.data, message.filename);
     return true;
   } else if (message.type === 'recording-error') {
-    isRecording = false;
-    recordingTabId = null;
+    if (message.tabId) {
+      activeRecordings.delete(message.tabId);
+    }
     chrome.runtime.sendMessage({
       type: 'recording-error',
+      tabId: message.tabId,
       error: message.error
     }).catch(() => {});
     return true;
   }
 });
 
-async function handleStartRecording(tabId, sendResponse) {
+async function handleStartRecording(tabId, customFilename, sendResponse) {
   try {
-    if (isRecording) {
-      sendResponse({ error: 'Already recording' });
+    if (activeRecordings.has(tabId)) {
+      sendResponse({ error: 'Already recording this tab' });
       return;
     }
 
@@ -49,54 +51,65 @@ async function handleStartRecording(tabId, sendResponse) {
       targetTabId: tabId
     });
 
-    isRecording = true;
-    recordingTabId = tabId;
+    activeRecordings.set(tabId, {
+      streamId,
+      startTime: Date.now(),
+      customFilename: customFilename || null
+    });
 
     await chrome.runtime.sendMessage({
       type: 'start-recording',
       target: 'offscreen',
+      tabId: tabId,
       streamId: streamId
     });
 
-    chrome.runtime.sendMessage({ type: 'recording-started' }).catch(() => {});
+    chrome.runtime.sendMessage({
+      type: 'recording-started',
+      tabId: tabId
+    }).catch(() => {});
     
     sendResponse({ success: true });
   } catch (error) {
-    isRecording = false;
-    recordingTabId = null;
-    chrome.runtime.sendMessage({ 
-      type: 'recording-error', 
-      error: error.message 
-    }).catch(() => {});
-    sendResponse({ error: error.message });
-  }
-}
-
-async function handleStopRecording(sendResponse) {
-  try {
-    if (!isRecording) {
-      sendResponse({ error: 'Not recording' });
-      return;
-    }
-
-    await chrome.runtime.sendMessage({
-      type: 'stop-recording',
-      target: 'offscreen'
-    });
-
-    sendResponse({ success: true });
-  } catch (error) {
-    isRecording = false;
-    recordingTabId = null;
+    activeRecordings.delete(tabId);
     chrome.runtime.sendMessage({
       type: 'recording-error',
+      tabId: tabId,
       error: error.message
     }).catch(() => {});
     sendResponse({ error: error.message });
   }
 }
 
-async function handleSaveRecording(dataUrl, filename) {
+async function handleStopRecording(tabId, sendResponse) {
+  try {
+    if (!activeRecordings.has(tabId)) {
+      sendResponse({ error: 'Not recording this tab' });
+      return;
+    }
+
+    const recording = activeRecordings.get(tabId);
+    
+    await chrome.runtime.sendMessage({
+      type: 'stop-recording',
+      target: 'offscreen',
+      tabId: tabId,
+      customFilename: recording.customFilename
+    });
+
+    sendResponse({ success: true });
+  } catch (error) {
+    activeRecordings.delete(tabId);
+    chrome.runtime.sendMessage({
+      type: 'recording-error',
+      tabId: tabId,
+      error: error.message
+    }).catch(() => {});
+    sendResponse({ error: error.message });
+  }
+}
+
+async function handleSaveRecording(tabId, dataUrl, filename) {
   try {
     await chrome.downloads.download({
       url: dataUrl,
@@ -104,28 +117,30 @@ async function handleSaveRecording(dataUrl, filename) {
       saveAs: false
     });
 
-    isRecording = false;
-    recordingTabId = null;
+    activeRecordings.delete(tabId);
     
-    chrome.runtime.sendMessage({ type: 'recording-stopped' }).catch(() => {});
+    chrome.runtime.sendMessage({
+      type: 'recording-stopped',
+      tabId: tabId
+    }).catch(() => {});
   } catch (error) {
-    isRecording = false;
-    recordingTabId = null;
+    activeRecordings.delete(tabId);
     chrome.runtime.sendMessage({
       type: 'recording-error',
+      tabId: tabId,
       error: error.message
     }).catch(() => {});
   }
 }
 
 chrome.tabs.onRemoved.addListener((tabId) => {
-  if (tabId === recordingTabId && isRecording) {
-    handleStopRecording(() => {});
+  if (activeRecordings.has(tabId)) {
+    handleStopRecording(tabId, () => {});
   }
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (tabId === recordingTabId && isRecording && changeInfo.url) {
-    handleStopRecording(() => {});
+  if (activeRecordings.has(tabId) && changeInfo.url) {
+    handleStopRecording(tabId, () => {});
   }
 });

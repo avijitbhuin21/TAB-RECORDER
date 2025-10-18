@@ -28,6 +28,56 @@ h1 {
   min-height: 20px;
 }
 
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input-group label {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: -4px;
+}
+
+.input-group input {
+  padding: 10px 12px;
+  font-size: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #333;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  transition: all 0.3s ease;
+}
+
+.input-group input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.8);
+  background: white;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
+}
+
+.input-group input::placeholder {
+  color: #999;
+}
+
+.timer {
+  text-align: center;
+  font-size: 32px;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  letter-spacing: 2px;
+  display: none;
+}
+
+.timer.active {
+  display: block;
+}
+
 button {
   padding: 12px 20px;
   font-size: 16px;

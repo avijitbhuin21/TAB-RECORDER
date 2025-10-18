@@ -4,9 +4,11 @@ A simple browser extension for Microsoft Edge (and other Chromium-based browsers
 
 ## Features
 
-- ✅ **Record tab audio and video** - Capture both audio and video content from the active tab
+- ✅ **Record tab audio and video** - Capture both audio and video content from any tab
+- ✅ **Concurrent multi-tab recording** - Record multiple tabs simultaneously without interference
 - ✅ **Simple interface** - Just two buttons: Start and Stop
 - ✅ **Automatic download** - Recordings are automatically saved to your downloads folder
+- ✅ **Per-tab recording state** - Each tab independently tracks its own recording status
 - ✅ **Manifest V3** - Built using the latest extension standards
 - ✅ **Edge 141+ compatible** - Fully compatible with Microsoft Edge version 141 and above
 
@@ -38,12 +40,20 @@ A simple browser extension for Microsoft Edge (and other Chromium-based browsers
 4. The extension will begin recording the tab's audio and video
 5. A recording indicator will appear showing the recording is active
 
+### Recording Multiple Tabs Simultaneously
+
+1. **Start recording on the first tab** as described above
+2. **Switch to another tab** you want to record
+3. **Click the Tab Recorder extension icon** and click "Start Recording"
+4. You can now record multiple tabs at the same time
+5. Each tab's recording is independent and can be stopped individually
+
 ### Stopping the Recording
 
-1. **Click the Tab Recorder extension icon** again
+1. **Click the Tab Recorder extension icon** on the tab you want to stop
 2. **Click "Stop Recording"** button
 3. The recording will automatically save to your downloads folder
-4. The file will be named `tab-recording-YYYY-MM-DDTHH-MM-SS.webm`
+4. The file will be named `tab-{tabId}-recording-YYYY-MM-DDTHH-MM-SS.webm`
 
 ## Technical Details
 
@@ -76,11 +86,11 @@ Recordings are saved in **WebM format** with the following codecs:
 
 ## Limitations
 
-- The extension can only record one tab at a time
 - Recording stops automatically if:
   - The tab is closed
   - You navigate to a different URL in the recorded tab
 - Audio playback in the recorded tab continues during recording (using Web Audio API routing)
+- Each recording session creates a separate offscreen document for media capture
 
 ## File Structure
 
