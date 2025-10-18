@@ -10,9 +10,40 @@ let currentTabId = null;
 let timerInterval = null;
 let recordingStartTime = null;
 
+async function loadSavedFilename(tabId) {
+  return new Promise((resolve) => {
+    const storageKey = `recordingFilename_${tabId}`;
+    chrome.storage.local.get([storageKey], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('Error loading filename:', chrome.runtime.lastError);
+        resolve('');
+        return;
+      }
+      resolve(result[storageKey] || '');
+    });
+  });
+}
+
+async function saveFilename(tabId, filename) {
+  return new Promise((resolve) => {
+    const storageKey = `recordingFilename_${tabId}`;
+    chrome.storage.local.set({ [storageKey]: filename }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('Error saving filename:', chrome.runtime.lastError);
+      }
+      resolve();
+    });
+  });
+}
+
 async function initializePopup() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentTabId = tab.id;
+  
+  const savedFilename = await loadSavedFilename(currentTabId);
+  if (savedFilename) {
+    filenameInput.value = savedFilename;
+  }
   
   chrome.runtime.sendMessage({
     type: 'get-recording-state',
@@ -127,6 +158,11 @@ stopBtn.addEventListener('click', async () => {
     stopBtn.disabled = false;
     updateUIForRecording(false);
   }
+});
+
+filenameInput.addEventListener('input', async () => {
+  const filename = filenameInput.value.trim();
+  await saveFilename(currentTabId, filename);
 });
 
 function updateUIForRecording(recording) {
