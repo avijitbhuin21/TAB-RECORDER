@@ -1,0 +1,105 @@
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+const status = document.getElementById('status');
+const recordingIndicator = document.getElementById('recordingIndicator');
+
+let isRecording = false;
+let currentTabId = null;
+
+async function initializePopup() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  currentTabId = tab.id;
+  
+  chrome.runtime.sendMessage({ type: 'get-recording-state' }, (response) => {
+    if (chrome.runtime.lastError) {
+      console.error('Error getting state:', chrome.runtime.lastError);
+      return;
+    }
+    
+    if (response && response.isRecording) {
+      if (response.recordingTabId === currentTabId) {
+        updateUIForRecording(true);
+        status.textContent = 'Recording in progress...';
+      } else {
+        startBtn.disabled = true;
+        status.textContent = 'Recording another tab';
+      }
+    }
+  });
+}
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'recording-started') {
+    updateUIForRecording(true);
+    status.textContent = 'Recording in progress...';
+  } else if (message.type === 'recording-stopped') {
+    updateUIForRecording(false);
+    status.textContent = 'Recording saved to downloads';
+    setTimeout(() => {
+      status.textContent = 'Ready to record';
+    }, 3000);
+  } else if (message.type === 'recording-error') {
+    updateUIForRecording(false);
+    status.textContent = `Error: ${message.error}`;
+    setTimeout(() => {
+      status.textContent = 'Ready to record';
+    }, 5000);
+  }
+});
+
+startBtn.addEventListener('click', async () => {
+  try {
+    status.textContent = 'Starting recording...';
+    startBtn.disabled = true;
+    
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    const response = await chrome.runtime.sendMessage({
+      type: 'start-recording',
+      tabId: tab.id
+    });
+    
+    if (response && response.error) {
+      status.textContent = `Error: ${response.error}`;
+      startBtn.disabled = false;
+    }
+  } catch (error) {
+    status.textContent = `Failed to start: ${error.message}`;
+    startBtn.disabled = false;
+  }
+});
+
+stopBtn.addEventListener('click', async () => {
+  try {
+    status.textContent = 'Stopping recording...';
+    stopBtn.disabled = true;
+    
+    const response = await chrome.runtime.sendMessage({
+      type: 'stop-recording'
+    });
+    
+    if (response && response.error) {
+      status.textContent = `Error: ${response.error}`;
+      stopBtn.disabled = false;
+      updateUIForRecording(false);
+    }
+  } catch (error) {
+    status.textContent = `Failed to stop: ${error.message}`;
+    stopBtn.disabled = false;
+    updateUIForRecording(false);
+  }
+});
+
+function updateUIForRecording(recording) {
+  isRecording = recording;
+  startBtn.disabled = recording;
+  stopBtn.disabled = !recording;
+  
+  if (recording) {
+    recordingIndicator.classList.add('active');
+  } else {
+    recordingIndicator.classList.remove('active');
+  }
+}
+
+initializePopup();
