@@ -2,6 +2,22 @@ const activeRecorders = new Map();
 const activeStreams = new Map();
 const recordedChunksMap = new Map();
 const customFilenames = new Map();
+function sendRecordingError(tabId, message) {
+  chrome.runtime.sendMessage({
+    type: 'recording-error',
+    tabId: tabId,
+    error: message
+  }).catch((error) => {
+    console.error('Failed to send recording error notification:', error);
+  });
+}
+function cleanupStream(stream) {
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+  }
+}
+
+
 
 chrome.runtime.onMessage.addListener(async (message) => {
   if (message.target !== 'offscreen') return;
@@ -27,9 +43,9 @@ chrome.runtime.onMessage.addListener(async (message) => {
 
       activeStreams.set(tabId, stream);
 
-      const output = new AudioContext();
-      const source = output.createMediaStreamSource(stream);
-      source.connect(output.destination);
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(audioContext.destination);
 
       const options = { mimeType: 'video/webm; codecs=vp8,opus' };
       
@@ -73,21 +89,17 @@ chrome.runtime.onMessage.addListener(async (message) => {
               tabId: tabId,
               data: reader.result,
               filename: filename
-            }).catch(() => {});
+            }).catch((error) => {
+              console.error('Failed to send save-recording message:', error);
+            });
           };
           reader.readAsDataURL(blob);
 
           const stream = activeStreams.get(tabId);
-          if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-            activeStreams.delete(tabId);
-          }
+          cleanupStream(stream);
+          activeStreams.delete(tabId);
         } catch (error) {
-          chrome.runtime.sendMessage({
-            type: 'recording-error',
-            tabId: tabId,
-            error: error.message
-          }).catch(() => {});
+          sendRecordingError(tabId, error.message);
         } finally {
           recordedChunksMap.delete(tabId);
           activeRecorders.delete(tabId);
@@ -96,20 +108,12 @@ chrome.runtime.onMessage.addListener(async (message) => {
       };
 
       mediaRecorder.onerror = (event) => {
-        chrome.runtime.sendMessage({
-          type: 'recording-error',
-          tabId: tabId,
-          error: event.error.message
-        }).catch(() => {});
+        sendRecordingError(tabId, event.error.message);
       };
 
       mediaRecorder.start();
     } catch (error) {
-      chrome.runtime.sendMessage({
-        type: 'recording-error',
-        tabId: tabId,
-        error: error.message
-      }).catch(() => {});
+      sendRecordingError(tabId, error.message);
     }
   } else if (message.type === 'stop-recording') {
     const tabId = message.tabId;

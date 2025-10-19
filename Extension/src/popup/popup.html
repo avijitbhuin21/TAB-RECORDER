@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,29 +7,57 @@
   <link rel="stylesheet" href="../assets/styles/popup.css">
 </head>
 <body>
-  <div class="container">
-    <h1>🎥 Tab Recorder</h1>
-    <div class="status" id="status">Ready to record</div>
-    
-    <div class="input-group">
-      <label for="filenameInput">Recording Name:</label>
-      <input
-        type="text"
-        id="filenameInput"
-        placeholder="my-recording"
-        maxlength="100"
-      >
+  <div class="popup" id="popup">
+    <h1 class="title">Tab Recorder</h1>
+
+    <div class="row status-row">
+      <label for="portInput">Port</label>
+      <input id="portInput" type="number" inputmode="numeric" min="1" max="65535" placeholder="8000" aria-label="Backend port">
+      <button id="checkStatusBtn" type="button" aria-describedby="connectionStatus">Check status</button>
+      <span id="connectionStatus" class="inline-status" role="status" aria-live="polite">Not connected</span>
     </div>
-    
-    <div class="recording-indicator" id="recordingIndicator">
-      <div class="recording-dot"></div>
-      <span>Recording...</span>
+
+    <div class="group">
+      <label for="filenameInput">Recording name</label>
+      <input id="filenameInput" type="text" placeholder="my-recording" maxlength="100" autocomplete="off">
     </div>
-    
-    <div class="timer" id="timer">00:00:00</div>
-    
-    <button id="startBtn">Start Recording</button>
-    <button id="stopBtn" disabled>Stop Recording</button>
+
+    <div class="group">
+      <label for="qualitySelect">Quality</label>
+      <select id="qualitySelect" aria-label="Recording quality"></select>
+    </div>
+
+    <div class="recording-indicator" id="recordingIndicator" aria-hidden="true">
+      <span class="recording-dot" aria-hidden="true"></span>
+      <span>Recording</span>
+    </div>
+
+    <div class="timers">
+      <div class="elapsed">
+        <span class="label">Elapsed</span>
+        <span id="elapsedTimer">00:00:00</span>
+      </div>
+      <div class="countdown">
+        <div class="inputs">
+          <label for="countHours">H</label>
+          <input id="countHours" type="number" min="0" inputmode="numeric" value="0">
+          <label for="countMinutes">M</label>
+          <input id="countMinutes" type="number" min="0" max="59" inputmode="numeric" value="0">
+          <label for="countSeconds">S</label>
+          <input id="countSeconds" type="number" min="0" max="59" inputmode="numeric" value="0">
+        </div>
+        <div class="countdown-display" id="countdownDisplay" aria-live="polite">00:00:00</div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="startBtn" type="button">Start Recording</button>
+      <button id="stopBtn" type="button" disabled>Stop Recording</button>
+    </div>
+
+    <div id="toast" role="alert" aria-live="assertive"></div>
+    <div id="ariaLive" class="sr-only" aria-live="polite"></div>
+    <div id="status" class="sr-only" aria-live="polite"></div>
   </div>
   <script src="popup.js"></script>
 </body>
