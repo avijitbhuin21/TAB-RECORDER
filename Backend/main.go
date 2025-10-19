@@ -20,6 +20,7 @@ var uiFiles embed.FS
 const (
 	serverPort  = "8080"
 	downloadDir = "./recordings"
+	logDir      = "./logs"
 )
 
 var (
@@ -28,16 +29,27 @@ var (
 )
 
 func main() {
+	if err := services.InitLogger(logDir); err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer services.CloseLogger()
+
+	services.LogInfo("Application starting...")
+	services.LogInfo("Log directory: %s", logDir)
+	services.LogInfo("Recordings directory: %s", downloadDir)
+
 	fileWriter = services.NewFileWriterService(downloadDir)
 	recorder := services.NewRecorderService(fileWriter)
 
 	recordingsHandler := handlers.NewRecordingsHandler(recorder)
 	configHandler := handlers.NewConfigHandler(fileWriter)
+	statsHandler := handlers.NewStatsHandler(recorder, fileWriter)
 
 	http.Handle("/ui/", http.FileServer(http.FS(uiFiles)))
 	http.HandleFunc("/api/health", handlers.CORSMiddleware(handlers.HealthHandler))
 	http.HandleFunc("/api/recordings", handlers.CORSMiddleware(recordingsHandler.Handle))
 	http.HandleFunc("/api/config", handlers.CORSMiddleware(configHandler.Handle))
+	http.HandleFunc("/api/stats", handlers.CORSMiddleware(statsHandler.Handle))
 
 	go startServer()
 

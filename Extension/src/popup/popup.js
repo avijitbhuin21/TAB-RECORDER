@@ -13,9 +13,8 @@ const recordingIndicator = document.getElementById('recordingIndicator');
 const elapsedTimer = document.getElementById('elapsedTimer');
 const ariaLive = document.getElementById('ariaLive');
 const toast = document.getElementById('toast');
-const portInput = document.getElementById('portInput');
 const checkStatusBtn = document.getElementById('checkStatusBtn');
-const connectionStatus = document.getElementById('connectionStatus');
+const downloadExeBtn = document.getElementById('downloadExeBtn');
 const qualitySelect = document.getElementById('qualitySelect');
 const countHours = document.getElementById('countHours');
 const countMinutes = document.getElementById('countMinutes');
@@ -32,14 +31,19 @@ let elapsedInterval = null;
 
 let healthController = null;
 let healthTimeoutId = null;
-let lastCheckedPort = '';
 let isConnected = false;
+let statsInterval = null;
+const BACKEND_PORT = '8080';
+const BACKEND_BASE_URL = `http://localhost:${BACKEND_PORT}/api`;
+const BACKEND_HEALTH_URL = `http://localhost:${BACKEND_PORT}/api/health`;
+const BACKEND_STATS_URL = `http://localhost:${BACKEND_PORT}/api/stats`;
+const EXECUTABLE_DOWNLOAD_URL = `http://localhost:${BACKEND_PORT}/download/backend.exe`;
 
 function announce(msg) {
   if (ariaLive) ariaLive.textContent = msg;
 }
 
-function showToast(msg) {
+function showToast(msg, type = 'info') {
   toast.textContent = msg;
   toast.classList.add('show');
   setTimeout(() => {
@@ -85,16 +89,26 @@ function updateRecordingUI(recording) {
   }
 }
 
-function isValidPort(value) {
-  const n = Number(value);
-  return Number.isInteger(n) && n >= 1 && n <= 65535;
-}
-
-function setInlineConnectionStatus(connected) {
-  isConnected = connected;
-  connectionStatus.textContent = connected ? 'Connected' : 'Not connected';
-  connectionStatus.classList.toggle('ok', connected);
-  announce(connected ? 'Connected' : 'Not connected');
+function updateConnectionUI(connected, checking = false) {
+  const titleDot = document.getElementById('titleStatusDot');
+  const statusBtn = document.getElementById('checkStatusBtn');
+  const statusBtnText = document.getElementById('statusBtnText');
+  
+  statusBtn.classList.remove('connected', 'disconnected', 'checking');
+  titleDot.classList.remove('connected', 'disconnected');
+  
+  if (checking) {
+    statusBtn.classList.add('checking');
+    statusBtnText.textContent = 'Checking...';
+  } else if (connected) {
+    titleDot.classList.add('connected');
+    statusBtn.classList.add('connected');
+    statusBtnText.textContent = 'Connected';
+  } else {
+    titleDot.classList.add('disconnected');
+    statusBtn.classList.add('disconnected');
+    statusBtnText.textContent = 'Disconnected';
+  }
 }
 
 function abortHealthIfAny() {
@@ -211,6 +225,8 @@ async function initializePopup() {
   updateCountdownPreview();
 
   await populateQualities();
+  
+  await checkHealth();
 
   try {
     chrome.runtime.sendMessage({ type: 'get-recording-state', tabId: currentTabId }, (response) => {
@@ -228,29 +244,48 @@ async function initializePopup() {
 }
 
 async function startRecording() {
+  console.log(`[POPUP] Starting recording`);
+  console.log(`[POPUP] Backend connected: ${isConnected}`);
+  
   try {
     startBtn.disabled = true;
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const customFilename = filenameInput.value.trim();
     const quality = qualitySelect.value;
     const countdownSeconds = countdownTotalSecondsFromInputs();
+    
+    console.log(`[POPUP] Tab ID: ${tab.id}`);
+    console.log(`[POPUP] Filename: ${customFilename || 'default'}`);
+    console.log(`[POPUP] Quality: ${quality}`);
+    console.log(`[POPUP] Countdown: ${countdownSeconds} seconds`);
+    console.log(`[POPUP] Mode: ${isConnected ? 'Backend' : 'Standalone'}`);
+    
     const response = await chrome.runtime.sendMessage({
       type: 'start-recording',
       tabId: tab.id,
       customFilename,
       quality,
-      countdownSeconds
+      countdownSeconds,
+      useBackend: isConnected
     });
+    
+    console.log(`[POPUP] Response from background:`, response);
+    
     if (response && response.error) {
-      showToast(String(response.error));
+      console.error(`[POPUP] Error starting recording:`, response.error);
+      showToast(String(response.error), 'error');
       startBtn.disabled = false;
     } else {
+      const mode = isConnected ? 'Backend' : 'Standalone';
+      console.log(`[POPUP] ✅ Recording started in ${mode} mode`);
+      showToast(`Recording started in ${mode} mode`);
       countHours.disabled = true;
       countMinutes.disabled = true;
       countSeconds.disabled = true;
     }
   } catch (e) {
-    showToast('Failed to start');
+    console.error(`[POPUP] Exception starting recording:`, e);
+    showToast('Failed to start recording', 'error');
     startBtn.disabled = false;
   }
 }
@@ -287,32 +322,83 @@ function updateCountdownPreview() {
 }
 
 
-async function checkHealth() {
-  const port = String(portInput.value || '').trim();
-  if (!isValidPort(port)) {
-    showToast('Backend not connected.');
-    return;
-  }
-  abortHealthIfAny();
-  checkStatusBtn.disabled = true;
-  const controller = new AbortController();
-  healthController = controller;
-  healthTimeoutId = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT_MS);
+async function fetchStats() {
+  if (!isConnected) return;
+  
   try {
-    const res = await fetch(`http://localhost:${port}/api/health`, { method: 'GET', signal: controller.signal });
-    if (res.ok) {
-      setInlineConnectionStatus(true);
-      lastCheckedPort = port;
-    } else {
-      showToast('Backend not connected.');
+    const response = await fetch(BACKEND_STATS_URL, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (response.ok) {
+      const stats = await response.json();
+      document.getElementById('activeSessions').textContent = stats.activeRecordings || 0;
+      document.getElementById('totalRecorded').textContent = (stats.totalSizeMB || 0).toFixed(2) + ' MB';
     }
-  } catch {
-    showToast('Backend not connected.');
-  } finally {
-    if (healthTimeoutId) clearTimeout(healthTimeoutId);
-    healthTimeoutId = null;
-    healthController = null;
-    checkStatusBtn.disabled = false;
+  } catch (error) {
+    console.error('[POPUP] Failed to fetch stats:', error);
+  }
+}
+
+function startStatsPolling() {
+  if (statsInterval) {
+    clearInterval(statsInterval);
+  }
+  fetchStats();
+  statsInterval = setInterval(fetchStats, 2000);
+}
+
+function stopStatsPolling() {
+  if (statsInterval) {
+    clearInterval(statsInterval);
+    statsInterval = null;
+  }
+}
+
+async function checkHealth(showMessages = false) {
+  console.log(`[POPUP] Checking backend health at ${BACKEND_HEALTH_URL}`);
+  
+  try {
+    updateConnectionUI(false, true);
+    
+    const response = await fetch(BACKEND_HEALTH_URL, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    console.log(`[POPUP] Health check response: ${response.status} ${response.statusText}`);
+    
+    if (response.ok && response.status === 200) {
+      const data = await response.json();
+      console.log(`[POPUP] Health check data:`, data);
+      
+      if (data.status && data.status === 'ok') {
+        isConnected = true;
+        updateConnectionUI(true);
+        document.getElementById('statsSection').style.display = 'block';
+        startStatsPolling();
+        console.log(`[POPUP] ✅ Backend connected successfully`);
+        if (showMessages) showToast('Backend connected successfully');
+        return true;
+      }
+    }
+    
+    isConnected = false;
+    updateConnectionUI(false);
+    document.getElementById('statsSection').style.display = 'none';
+    stopStatsPolling();
+    console.log(`[POPUP] ❌ Backend not responding`);
+    if (showMessages) showToast('Backend not responding', 'error');
+    return false;
+    
+  } catch (error) {
+    console.error('[POPUP] Health check failed:', error);
+    isConnected = false;
+    updateConnectionUI(false);
+    document.getElementById('statsSection').style.display = 'none';
+    stopStatsPolling();
+    return false;
   }
 }
 
@@ -362,18 +448,27 @@ qualitySelect.addEventListener('change', async () => {
 startBtn.addEventListener('click', startRecording);
 stopBtn.addEventListener('click', stopRecording);
 
-const debouncedPortChanged = debounce(() => {
-  abortHealthIfAny();
-  setInlineConnectionStatus(false);
-}, DEBOUNCE_DELAY_MS);
-
-portInput.addEventListener('input', () => {
-  debouncedPortChanged();
+checkStatusBtn.addEventListener('click', async () => {
+  const btn = document.getElementById('checkStatusBtn');
+  btn.disabled = true;
+  
+  await checkHealth(true);
+  
+  btn.disabled = false;
 });
 
-checkStatusBtn.addEventListener('click', () => {
-  if (healthController) abortHealthIfAny();
-  checkHealth();
+downloadExeBtn.addEventListener('click', () => {
+  chrome.downloads.download({
+    url: EXECUTABLE_DOWNLOAD_URL,
+    filename: 'chrome-recorder-backend.exe',
+    saveAs: true
+  }, (downloadId) => {
+    if (chrome.runtime.lastError) {
+      showToast('Download failed: ' + chrome.runtime.lastError.message, 'error');
+    } else {
+      showToast('Download started successfully');
+    }
+  });
 });
 
 [countHours, countMinutes, countSeconds].forEach((el) => {

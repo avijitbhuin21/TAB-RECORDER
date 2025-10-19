@@ -8,13 +8,23 @@
 </head>
 <body>
   <div class="popup" id="popup">
-    <h1 class="title">Tab Recorder</h1>
+    <div class="title-section">
+      <h1 class="title">Tab Recorder</h1>
+      <span class="title-status-dot" id="titleStatusDot"></span>
+    </div>
 
-    <div class="row status-row">
-      <label for="portInput">Port</label>
-      <input id="portInput" type="number" inputmode="numeric" min="1" max="65535" placeholder="8000" aria-label="Backend port">
-      <button id="checkStatusBtn" type="button" aria-describedby="connectionStatus">Check status</button>
-      <span id="connectionStatus" class="inline-status" role="status" aria-live="polite">Not connected</span>
+    <div class="connection-section">
+      <button id="checkStatusBtn" class="status-btn">
+        <span id="statusBtnText">Check Server Status</span>
+      </button>
+      <button id="downloadExeBtn" class="download-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        Download Application
+      </button>
     </div>
 
     <div class="group">
@@ -47,6 +57,20 @@
           <input id="countSeconds" type="number" min="0" max="59" inputmode="numeric" value="0">
         </div>
         <div class="countdown-display" id="countdownDisplay" aria-live="polite">00:00:00</div>
+      </div>
+    </div>
+
+    <div class="stats-section" id="statsSection" style="display: none;">
+      <h3>Backend Statistics</h3>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="stat-label">Active Sessions:</span>
+          <span class="stat-value" id="activeSessions">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Total Recorded:</span>
+          <span class="stat-value" id="totalRecorded">0 MB</span>
+        </div>
       </div>
     </div>
 
