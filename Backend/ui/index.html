@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Recording Server</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header card">
+            <div class="header__left">
+                <i data-lucide="server" class="icon"></i>
+                <div class="title">Recording Server</div>
+                <div class="status" aria-live="polite" aria-atomic="true">
+                    <span class="dot" id="status-dot"></span>
+                    <span id="status-text">Checking…</span>
+                </div>
+                <!-- Server Port pill placed next to status and to the left of theme toggle -->
+                <span class="pill" id="port-pill" title="Server Port">
+                    <i data-lucide="hash" class="icon"></i>
+                    <span id="port-text">Port 8080</span>
+                </span>
+            </div>
+
+            <div class="toolbar">
+                <button id="theme-toggle" class="icon-btn" aria-label="Toggle theme">
+                    <i id="theme-icon" data-lucide="moon" class="icon"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Configuration (Server Port removed from here) -->
+        <section class="card section" aria-labelledby="config-title">
+            <div class="section__header">
+                <h2 id="config-title" class="section__title">Configuration</h2>
+            </div>
+
+            <div class="config-grid" role="list">
+                <div class="field" role="listitem">
+                    <div class="label">Download Directory</div>
+                    <div id="downloadDir" class="value">./recordings</div>
+                </div>
+            </div>
+
+            <div style="margin-top:12px;">
+                <button id="change-dir-btn" class="btn" type="button">
+                    <i data-lucide="folder-open" class="icon"></i>
+                    Change Directory
+                </button>
+            </div>
+        </section>
+
+        <!-- Active Recordings -->
+        <section class="card section" aria-labelledby="active-title">
+            <div class="section__header">
+                <h2 id="active-title" class="section__title">Active Recordings</h2>
+                <span class="badge">
+                    <i data-lucide="video" class="icon"></i>
+                    <span id="active-count">0</span>
+                </span>
+            </div>
+
+            <div id="recordings-list" class="list" role="list">
+                <div class="empty">No active recordings</div>
+            </div>
+        </section>
+
+        <!-- Stats -->
+        <section class="card section" aria-labelledby="stats-title">
+            <div class="section__header">
+                <h2 id="stats-title" class="section__title">Statistics</h2>
+            </div>
+            <div class="stats">
+                <div class="stat">
+                    <div class="k">Total Sessions</div>
+                    <div id="total-recordings" class="v">0</div>
+                </div>
+                <div class="stat">
+                    <div class="k">Cumulative Size</div>
+                    <div id="total-size" class="v">0 B</div>
+                </div>
+                <div class="stat">
+                    <div class="k">Active Sessions</div>
+                    <div id="active-sessions" class="v">0</div>
+                </div>
+                <div class="stat">
+                    <div class="k">Server Uptime</div>
+                    <div id="server-uptime" class="v">00:00:00</div>
+                </div>
+            </div>
+        </section>
+    </div>
+    <script src="lucide.min.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>

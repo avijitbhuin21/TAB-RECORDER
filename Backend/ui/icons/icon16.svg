@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16" height="16" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad16" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <rect width="16" height="16" fill="url(#grad16)"/>
+  
+  <circle cx="8" cy="8" r="5.6" fill="white"/>
+  
+  <circle cx="8" cy="8" r="2.2399999999999998" fill="#ef4444"/>
+  
+  <polygon points="7.28,6.8 7.28,9.2 9.44,8" fill="white"/>
+</svg>
