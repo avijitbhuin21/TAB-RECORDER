@@ -23,12 +23,12 @@ const (
 )
 
 var (
-	serverStarted = make(chan bool)
-	currentDownloadDir = downloadDir
+	serverStarted = make(chan bool, 1)
+	fileWriter    *services.FileWriterService
 )
 
 func main() {
-	fileWriter := services.NewFileWriterService(downloadDir)
+	fileWriter = services.NewFileWriterService(downloadDir)
 	recorder := services.NewRecorderService(fileWriter)
 
 	recordingsHandler := handlers.NewRecordingsHandler(recorder)
@@ -41,18 +41,11 @@ func main() {
 
 	go startServer()
 
-	launchUI(fileWriter)
+	launchUI()
 }
 
 func startServer() {
 	log.Printf("Server starting on http://localhost:%s", serverPort)
-	log.Printf("Download directory: %s", currentDownloadDir)
-	log.Printf("\nAvailable endpoints:")
-	log.Printf("  GET  http://localhost:%s/api/health", serverPort)
-	log.Printf("  POST http://localhost:%s/api/recordings", serverPort)
-	log.Printf("  POST http://localhost:%s/api/config", serverPort)
-	log.Printf("  UI   http://localhost:%s/ui/index.html\n", serverPort)
-	
 	serverStarted <- true
 
 	if err := http.ListenAndServe(":"+serverPort, nil); err != nil {
@@ -60,20 +53,20 @@ func startServer() {
 	}
 }
 
-func launchUI(fileWriter *services.FileWriterService) {
+func launchUI() {
 	<-serverStarted
 	time.Sleep(100 * time.Millisecond)
 
 	w := webview.New(false)
+	if w == nil {
+		log.Fatal("Failed to create webview instance")
+	}
 	defer w.Destroy()
 
 	w.SetTitle("Recording Server")
-	w.SetSize(1200, 800, webview.HintMin)
+	w.SetSize(1200, 800, webview.HintNone)
 
-	go func() {
-		time.Sleep(500 * time.Millisecond)
-		setWindowIcon(w)
-	}()
+	setWindowIcon(w)
 
 	w.Bind("selectDirectory", func() string {
 		dir, err := dialog.Directory().Title("Select Download Directory").Browse()
@@ -81,16 +74,17 @@ func launchUI(fileWriter *services.FileWriterService) {
 			log.Printf("Directory selection error: %v", err)
 			return ""
 		}
-		currentDownloadDir = dir
-		fileWriter.SetDownloadDir(dir)
-		log.Printf("Download directory changed to: %s", dir)
+		if dir != "" {
+			fileWriter.SetDownloadDir(dir)
+			log.Printf("Download directory changed to: %s", dir)
+		}
 		return dir
 	})
 
 	w.Bind("getServerStatus", func() map[string]interface{} {
 		return map[string]interface{}{
 			"port":        serverPort,
-			"downloadDir": currentDownloadDir,
+			"downloadDir": downloadDir,
 			"running":     true,
 		}
 	})
