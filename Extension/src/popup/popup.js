@@ -32,11 +32,9 @@ let elapsedInterval = null;
 let healthController = null;
 let healthTimeoutId = null;
 let isConnected = false;
-let statsInterval = null;
 const BACKEND_PORT = '8080';
 const BACKEND_BASE_URL = `http://localhost:${BACKEND_PORT}/api`;
 const BACKEND_HEALTH_URL = `http://localhost:${BACKEND_PORT}/api/health`;
-const BACKEND_STATS_URL = `http://localhost:${BACKEND_PORT}/api/stats`;
 const EXECUTABLE_DOWNLOAD_URL = `http://localhost:${BACKEND_PORT}/download/backend.exe`;
 
 function announce(msg) {
@@ -322,40 +320,6 @@ function updateCountdownPreview() {
 }
 
 
-async function fetchStats() {
-  if (!isConnected) return;
-  
-  try {
-    const response = await fetch(BACKEND_STATS_URL, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    
-    if (response.ok) {
-      const stats = await response.json();
-      document.getElementById('activeSessions').textContent = stats.activeRecordings || 0;
-      document.getElementById('totalRecorded').textContent = (stats.totalSizeMB || 0).toFixed(2) + ' MB';
-    }
-  } catch (error) {
-    console.error('[POPUP] Failed to fetch stats:', error);
-  }
-}
-
-function startStatsPolling() {
-  if (statsInterval) {
-    clearInterval(statsInterval);
-  }
-  fetchStats();
-  statsInterval = setInterval(fetchStats, 2000);
-}
-
-function stopStatsPolling() {
-  if (statsInterval) {
-    clearInterval(statsInterval);
-    statsInterval = null;
-  }
-}
-
 async function checkHealth(showMessages = false) {
   console.log(`[POPUP] Checking backend health at ${BACKEND_HEALTH_URL}`);
   
@@ -376,8 +340,6 @@ async function checkHealth(showMessages = false) {
       if (data.status && data.status === 'ok') {
         isConnected = true;
         updateConnectionUI(true);
-        document.getElementById('statsSection').style.display = 'block';
-        startStatsPolling();
         console.log(`[POPUP] ✅ Backend connected successfully`);
         if (showMessages) showToast('Backend connected successfully');
         return true;
@@ -386,8 +348,6 @@ async function checkHealth(showMessages = false) {
     
     isConnected = false;
     updateConnectionUI(false);
-    document.getElementById('statsSection').style.display = 'none';
-    stopStatsPolling();
     console.log(`[POPUP] ❌ Backend not responding`);
     if (showMessages) showToast('Backend not responding', 'error');
     return false;
@@ -396,8 +356,6 @@ async function checkHealth(showMessages = false) {
     console.error('[POPUP] Health check failed:', error);
     isConnected = false;
     updateConnectionUI(false);
-    document.getElementById('statsSection').style.display = 'none';
-    stopStatsPolling();
     return false;
   }
 }

@@ -1,8 +1,19 @@
 const activeRecordings = new Map();
 const activeCountdowns = new Map();
-// Timing constant for countdown updates
 const COUNTDOWN_UPDATE_INTERVAL_MS = 250;
+const RECORDING_BUFFER_SECONDS = 2;
 
+/**
+ * Sends a message to the Chrome runtime with error handling.
+ * @param {Object} message - The message object to send
+ * @param {string} errorContext - Context description for error logging
+ * @returns {Promise} Promise that resolves when message is sent or logs error
+ */
+function sendMessageSafely(message, errorContext) {
+  return chrome.runtime.sendMessage(message).catch((error) => {
+    console.error(`[BACKGROUND] ${errorContext}:`, error);
+  });
+}
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'start-recording') {
@@ -24,59 +35,61 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleSaveRecording(message.tabId, message.data, message.filename);
     return true;
   } else if (message.type === 'recording-complete') {
-    console.log(`[BACKGROUND] Recording completed for tab ${message.tabId}`);
-    activeRecordings.delete(message.tabId);
-    stopCountdown(message.tabId);
-    
-    chrome.runtime.sendMessage({
+    cleanupRecording(message.tabId);
+    sendMessageSafely({
       type: 'recording-stopped',
       tabId: message.tabId
-    }).catch((error) => {
-      console.error('[BACKGROUND] Failed to send recording-stopped notification:', error);
-    });
+    }, 'Failed to send recording-stopped notification');
     return true;
   } else if (message.type === 'recording-error') {
     if (message.tabId) {
-      activeRecordings.delete(message.tabId);
-      stopCountdown(message.tabId);
+      cleanupRecording(message.tabId);
     }
-    chrome.runtime.sendMessage({
+    sendMessageSafely({
       type: 'recording-error',
       tabId: message.tabId,
       error: message.error
-    }).catch((error) => {
-      console.error('Failed to forward recording error to popup:', error);
-    });
+    }, 'Failed to forward recording error to popup');
     return true;
   }
 });
 
+/**
+ * Starts a countdown timer for a recording session.
+ * @param {number} tabId - The tab ID for the recording
+ * @param {number} totalSeconds - Duration of countdown in seconds
+ */
 function startCountdown(tabId, totalSeconds) {
   if (totalSeconds <= 0) return;
   
   stopCountdown(tabId);
   
-  const endAt = Date.now() + totalSeconds * 1000;
+  const displayEndAt = Date.now() + totalSeconds * 1000;
+  const actualEndAt = Date.now() + (totalSeconds + RECORDING_BUFFER_SECONDS) * 1000;
+  
   const intervalId = setInterval(() => {
-    const remaining = Math.max(0, endAt - Date.now());
+    const displayRemaining = Math.max(0, displayEndAt - Date.now());
+    const actualRemaining = Math.max(0, actualEndAt - Date.now());
     
-    chrome.runtime.sendMessage({
+    sendMessageSafely({
       type: 'countdown-tick',
       tabId: tabId,
-      remainingMs: remaining
-    }).catch((error) => {
-      console.error('Failed to send countdown update to popup:', error);
-    });
+      remainingMs: displayRemaining
+    }, 'Failed to send countdown update to popup');
     
-    if (remaining <= 0) {
+    if (actualRemaining <= 0) {
       stopCountdown(tabId);
       handleStopRecording(tabId, () => {});
     }
   }, COUNTDOWN_UPDATE_INTERVAL_MS);
   
-  activeCountdowns.set(tabId, { endAt, intervalId });
+  activeCountdowns.set(tabId, { endAt: displayEndAt, intervalId });
 }
 
+/**
+ * Stops and clears the countdown timer for a tab.
+ * @param {number} tabId - The tab ID to stop countdown for
+ */
 function stopCountdown(tabId) {
   const countdown = activeCountdowns.get(tabId);
   if (countdown) {
@@ -84,56 +97,78 @@ function stopCountdown(tabId) {
     activeCountdowns.delete(tabId);
   }
 }
+/**
+ * Sends a recording error notification to the popup.
+ * @param {number} tabId - The tab ID where error occurred
+ * @param {string} message - The error message
+ */
 function sendRecordingError(tabId, message) {
-  chrome.runtime.sendMessage({
+  sendMessageSafely({
     type: 'recording-error',
     tabId: tabId,
     error: message
-  }).catch((error) => {
-    console.error('Failed to send recording error notification:', error);
-  });
+  }, 'Failed to send recording error notification');
 }
 
 
+/**
+ * Cleans up recording state and stops countdown for a tab.
+ * @param {number} tabId - The tab ID to cleanup
+ */
 function cleanupRecording(tabId) {
   activeRecordings.delete(tabId);
   stopCountdown(tabId);
 }
 
+/**
+ * Ensures an offscreen document exists for media capture.
+ * Creates one if it doesn't already exist.
+ * @returns {Promise<void>}
+ */
+async function ensureOffscreenDocument() {
+  const existingContexts = await chrome.runtime.getContexts({});
+  const offscreenDocument = existingContexts.find(
+    (c) => c.contextType === 'OFFSCREEN_DOCUMENT'
+  );
+
+  if (!offscreenDocument) {
+    await chrome.offscreen.createDocument({
+      url: 'src/offscreen/offscreen.html',
+      reasons: ['USER_MEDIA'],
+      justification: 'Recording tab audio and video'
+    });
+  }
+}
+
+/**
+ * Acquires a media stream ID for tab capture.
+ * @param {number} tabId - The tab ID to capture
+ * @returns {Promise<string>} The media stream ID
+ */
+async function acquireMediaStream(tabId) {
+  return await chrome.tabCapture.getMediaStreamId({
+    targetTabId: tabId
+  });
+}
+
+/**
+ * Handles starting a new recording session.
+ * @param {number} tabId - The tab ID to record
+ * @param {string|null} customFilename - Optional custom filename for the recording
+ * @param {number} countdownSeconds - Optional countdown duration
+ * @param {boolean} useBackend - Whether to use backend server for storage
+ * @param {Function} sendResponse - Callback to send response to caller
+ * @returns {Promise<void>}
+ */
 async function handleStartRecording(tabId, customFilename, countdownSeconds, useBackend, sendResponse) {
-  console.log(`[BACKGROUND] Starting recording for tab ${tabId}`);
-  console.log(`[BACKGROUND] Filename: ${customFilename || 'default'}`);
-  console.log(`[BACKGROUND] Use Backend: ${useBackend}`);
-  console.log(`[BACKGROUND] Countdown: ${countdownSeconds || 0} seconds`);
-  
   try {
     if (activeRecordings.has(tabId)) {
-      console.error(`[BACKGROUND] Tab ${tabId} is already recording`);
       sendResponse({ error: 'Already recording this tab' });
       return;
     }
 
-    const existingContexts = await chrome.runtime.getContexts({});
-    const offscreenDocument = existingContexts.find(
-      (c) => c.contextType === 'OFFSCREEN_DOCUMENT'
-    );
-
-    if (!offscreenDocument) {
-      console.log(`[BACKGROUND] Creating offscreen document`);
-      await chrome.offscreen.createDocument({
-        url: 'src/offscreen/offscreen.html',
-        reasons: ['USER_MEDIA'],
-        justification: 'Recording tab audio and video'
-      });
-    } else {
-      console.log(`[BACKGROUND] Offscreen document already exists`);
-    }
-
-    console.log(`[BACKGROUND] Getting media stream ID for tab ${tabId}`);
-    const streamId = await chrome.tabCapture.getMediaStreamId({
-      targetTabId: tabId
-    });
-    console.log(`[BACKGROUND] Stream ID obtained: ${streamId}`);
+    await ensureOffscreenDocument();
+    const streamId = await acquireMediaStream(tabId);
 
     activeRecordings.set(tabId, {
       streamId,
@@ -141,16 +176,13 @@ async function handleStartRecording(tabId, customFilename, countdownSeconds, use
       customFilename: customFilename || null,
       useBackend: useBackend
     });
-    console.log(`[BACKGROUND] Recording state saved for tab ${tabId}`);
 
-    console.log(`[BACKGROUND] Sending set-backend-mode message: ${useBackend}`);
     await chrome.runtime.sendMessage({
       type: 'set-backend-mode',
       target: 'offscreen',
       useBackend: useBackend
     });
 
-    console.log(`[BACKGROUND] Sending start-recording message to offscreen`);
     await chrome.runtime.sendMessage({
       type: 'start-recording',
       target: 'offscreen',
@@ -160,29 +192,29 @@ async function handleStartRecording(tabId, customFilename, countdownSeconds, use
     });
 
     if (countdownSeconds && countdownSeconds > 0) {
-      console.log(`[BACKGROUND] Starting countdown: ${countdownSeconds} seconds`);
       startCountdown(tabId, countdownSeconds);
     }
 
-    console.log(`[BACKGROUND] Sending recording-started notification`);
-    chrome.runtime.sendMessage({
+    sendMessageSafely({
       type: 'recording-started',
       tabId: tabId
-    }).catch((error) => {
-      console.error('[BACKGROUND] Failed to send recording-started notification:', error);
-    });
+    }, 'Failed to send recording-started notification');
     
-    console.log(`[BACKGROUND] ✅ Recording started successfully for tab ${tabId}`);
     sendResponse({ success: true });
   } catch (error) {
-    console.error(`[BACKGROUND] ❌ Error starting recording:`, error);
-    activeRecordings.delete(tabId);
-    stopCountdown(tabId);
+    console.error(`[BACKGROUND] Error starting recording for tab ${tabId}:`, error);
+    cleanupRecording(tabId);
     sendRecordingError(tabId, error.message);
     sendResponse({ error: error.message });
   }
 }
 
+/**
+ * Handles stopping an active recording session.
+ * @param {number} tabId - The tab ID to stop recording
+ * @param {Function} sendResponse - Callback to send response to caller
+ * @returns {Promise<void>}
+ */
 async function handleStopRecording(tabId, sendResponse) {
   try {
     if (!activeRecordings.has(tabId)) {
@@ -202,13 +234,19 @@ async function handleStopRecording(tabId, sendResponse) {
 
     sendResponse({ success: true });
   } catch (error) {
-    activeRecordings.delete(tabId);
-    stopCountdown(tabId);
+    cleanupRecording(tabId);
     sendRecordingError(tabId, error.message);
     sendResponse({ error: error.message });
   }
 }
 
+/**
+ * Handles saving a completed recording to disk.
+ * @param {number} tabId - The tab ID of the recording
+ * @param {string} dataUrl - The data URL of the recording blob
+ * @param {string} filename - The filename to save as
+ * @returns {Promise<void>}
+ */
 async function handleSaveRecording(tabId, dataUrl, filename) {
   try {
     await chrome.downloads.download({
@@ -217,15 +255,11 @@ async function handleSaveRecording(tabId, dataUrl, filename) {
       saveAs: false
     });
 
-    activeRecordings.delete(tabId);
-    stopCountdown(tabId);
-    
-    chrome.runtime.sendMessage({
+    cleanupRecording(tabId);
+    sendMessageSafely({
       type: 'recording-stopped',
       tabId: tabId
-    }).catch((error) => {
-      console.error('Failed to send recording-stopped notification:', error);
-    });
+    }, 'Failed to send recording-stopped notification');
   } catch (error) {
     cleanupRecording(tabId);
     sendRecordingError(tabId, error.message);

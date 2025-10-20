@@ -1,17 +1,19 @@
-// Configuration
-const API_BASE = 'http://localhost:8080/api';
+function getApiBase() {
+    try {
+        const { protocol, hostname, port } = window.location;
+        return `${protocol}//${hostname}:${port}/api`;
+    } catch {
+        return 'http://localhost:8080/api';
+    }
+}
 
-// Simulation configuration constants
-const SIMULATION = {
-    MIN_CHUNK_SIZE: 50000,   // Minimum random chunk size in bytes
-    MAX_CHUNK_SIZE: 200000   // Maximum random chunk size in bytes
-};
+const API_BASE = getApiBase();
 
-// Interval timing constants (in milliseconds)
 const INTERVALS = {
-    HEALTH_CHECK: 5000,      // Health check polling interval
-    RECORDING_UPDATE: 1000,  // Active recordings update interval
-    UPTIME_UPDATE: 1000      // Uptime display update interval
+    HEALTH_CHECK: 5000,
+    RECORDING_UPDATE: 1000,
+    STATS_UPDATE: 2000,
+    UPTIME_UPDATE: 1000
 };
 
 // State
@@ -145,7 +147,77 @@ function formatFileSize(bytes) {
     return `${val} ${units[i]}`;
 }
 
-// Rendering
+function renderRecordingItem(name, tabId, duration, size, startTime) {
+    return `
+        <div class="item" role="listitem">
+          <div class="item__head">
+            <div class="item__title">
+              <i data-lucide="video" class="icon"></i>
+              <span>${escapeHtml(name)}</span>
+            </div>
+            <span class="pill">
+              <i data-lucide="monitor" class="icon"></i>
+              Tab ${String(tabId)}
+            </span>
+          </div>
+          <div class="details">
+            <div class="kv">
+              <div class="k">Duration</div>
+              <div class="v">${formatDuration(duration)}</div>
+            </div>
+            <div class="kv">
+              <div class="k">Data Transferred</div>
+              <div class="v">${formatFileSize(size)}</div>
+            </div>
+            <div class="kv">
+              <div class="k">Started</div>
+              <div class="v">${startTime}</div>
+            </div>
+          </div>
+        </div>
+    `;
+}
+
+async function fetchStats() {
+    try {
+        const res = await fetch(`${API_BASE}/stats`, { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        
+        const activeCount = data.activeRecordings || 0;
+        const totalSizeMB = data.totalSizeMB || 0;
+        const totalSessions = data.totalSessions || 0;
+        const sessions = data.sessions || [];
+        
+        document.getElementById('active-count').textContent = activeCount;
+        document.getElementById('active-sessions').textContent = activeCount;
+        document.getElementById('total-recordings').textContent = totalSessions;
+        
+        state.totalSizeBytes = totalSizeMB * 1024 * 1024;
+        document.getElementById('total-size').textContent = formatFileSize(state.totalSizeBytes);
+        
+        const container = document.getElementById('recordings-list');
+        
+        if (activeCount === 0) {
+            container.innerHTML = '<div class="empty">No active recordings</div>';
+            return;
+        }
+        
+        const items = sessions.map(session => renderRecordingItem(
+            session.name,
+            session.tabId,
+            session.durationSec * 1000,
+            session.bytesWritten,
+            escapeHtml(session.startTime)
+        ));
+        
+        container.innerHTML = items.join('');
+        lucide.createIcons();
+    } catch (err) {
+        console.debug('Failed to fetch stats:', err?.message || err);
+    }
+}
+
 function renderActiveRecordings() {
     const container = document.getElementById('recordings-list');
     const activeCount = state.activeRecordings.size;
@@ -162,34 +234,13 @@ function renderActiveRecordings() {
     const items = [];
     state.activeRecordings.forEach((rec, tabId) => {
         const duration = now - rec.startTime;
-        items.push(`
-        <div class="item" role="listitem">
-          <div class="item__head">
-            <div class="item__title">
-              <i data-lucide="video" class="icon"></i>
-              <span>${escapeHtml(rec.name)}</span>
-            </div>
-            <span class="pill">
-              <i data-lucide="monitor" class="icon"></i>
-              Tab ${String(tabId)}
-            </span>
-          </div>
-              <div class="details">
-                <div class="kv">
-                  <div class="k">Duration</div>
-                  <div class="v">${formatDuration(duration)}</div>
-                </div>
-                <div class="kv">
-                  <div class="k">File Size</div>
-                  <div class="v">${formatFileSize(rec.size)}</div>
-                </div>
-                <div class="kv">
-                  <div class="k">Started</div>
-                  <div class="v">${new Date(rec.startTime).toLocaleTimeString()}</div>
-                </div>
-              </div>
-            </div>
-          `);
+        items.push(renderRecordingItem(
+            rec.name,
+            tabId,
+            duration,
+            rec.size,
+            new Date(rec.startTime).toLocaleTimeString()
+        ));
     });
 
     container.innerHTML = items.join('');
@@ -214,42 +265,10 @@ function escapeHtml(str) {
         .replace(/>/g, '&gt;');
 }
 
-// Demo/External API hooks to add/remove recordings from outside
-function addRecording(tabId, name) {
-    if (!state.activeRecordings.has(tabId)) {
-        state.activeRecordings.set(tabId, {
-            name: name || `Session ${tabId}`,
-            startTime: Date.now(),
-            size: 0
-        });
-        state.totalRecordings += 1;
-    }
-    // Simulate growth
-    const rec = state.activeRecordings.get(tabId);
-    const delta = Math.floor(Math.random() * (SIMULATION.MAX_CHUNK_SIZE - SIMULATION.MIN_CHUNK_SIZE)) + SIMULATION.MIN_CHUNK_SIZE;
-    rec.size += delta;
-    state.totalSizeBytes += delta;
-
-    renderActiveRecordings();
-    renderStats();
-}
-
-function removeRecording(tabId) {
-    if (!state.activeRecordings.has(tabId)) return;
-    state.activeRecordings.delete(tabId);
-    renderActiveRecordings();
-}
-
-// Expose hooks
-window.addRecording = addRecording;
-window.removeRecording = removeRecording;
-
-// Events
 function initEvents() {
     document.getElementById('change-dir-btn').addEventListener('click', handleDirectorySelection);
 }
 
-// Init
 function init() {
     lucide.createIcons();
     initTheme();
@@ -258,12 +277,10 @@ function init() {
     loadServerInfo();
     renderStats();
     renderUptime();
-    renderActiveRecordings();
+    fetchStats();
 
     setInterval(checkHealth, INTERVALS.HEALTH_CHECK);
-    setInterval(() => {
-        if (state.activeRecordings.size > 0) renderActiveRecordings();
-    }, INTERVALS.RECORDING_UPDATE);
+    setInterval(fetchStats, INTERVALS.STATS_UPDATE);
     setInterval(renderUptime, INTERVALS.UPTIME_UPDATE);
 }
 

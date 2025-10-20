@@ -1,11 +1,21 @@
 package handlers
 
-import "net/http"
+import (
+	"net/http"
+	"os"
+)
 
-// CORSMiddleware adds CORS headers to all responses
+func getAllowedOrigin() string {
+	if origin := os.Getenv("ALLOWED_ORIGIN"); origin != "" {
+		return origin
+	}
+	return "*"
+}
+
 func CORSMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	allowedOrigin := getAllowedOrigin()
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		

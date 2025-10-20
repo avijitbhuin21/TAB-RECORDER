@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"recorder/handlers"
@@ -18,10 +19,16 @@ import (
 var uiFiles embed.FS
 
 const (
-	serverPort  = "8080"
 	downloadDir = "./recordings"
 	logDir      = "./logs"
 )
+
+func getServerPort() string {
+	if port := os.Getenv("SERVER_PORT"); port != "" {
+		return port
+	}
+	return "8080"
+}
 
 var (
 	serverStarted = make(chan bool, 1)
@@ -34,12 +41,15 @@ func main() {
 	}
 	defer services.CloseLogger()
 
+	serverPort := getServerPort()
 	services.LogInfo("Application starting...")
+	services.LogInfo("Server port: %s", serverPort)
 	services.LogInfo("Log directory: %s", logDir)
 	services.LogInfo("Recordings directory: %s", downloadDir)
 
-	fileWriter = services.NewFileWriterService(downloadDir)
-	recorder := services.NewRecorderService(fileWriter)
+	stats := services.NewStats(downloadDir)
+	fileWriter = services.NewFileWriterService(downloadDir, stats)
+	recorder := services.NewRecorderService(fileWriter, stats)
 
 	recordingsHandler := handlers.NewRecordingsHandler(recorder)
 	configHandler := handlers.NewConfigHandler(fileWriter)
@@ -51,21 +61,21 @@ func main() {
 	http.HandleFunc("/api/config", handlers.CORSMiddleware(configHandler.Handle))
 	http.HandleFunc("/api/stats", handlers.CORSMiddleware(statsHandler.Handle))
 
-	go startServer()
+	go startServer(serverPort)
 
-	launchUI()
+	launchUI(serverPort)
 }
 
-func startServer() {
-	log.Printf("Server starting on http://localhost:%s", serverPort)
+func startServer(port string) {
+	log.Printf("Server starting on http://localhost:%s", port)
 	serverStarted <- true
 
-	if err := http.ListenAndServe(":"+serverPort, nil); err != nil {
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func launchUI() {
+func launchUI(port string) {
 	<-serverStarted
 	time.Sleep(100 * time.Millisecond)
 
@@ -95,12 +105,12 @@ func launchUI() {
 
 	w.Bind("getServerStatus", func() map[string]interface{} {
 		return map[string]interface{}{
-			"port":        serverPort,
+			"port":        port,
 			"downloadDir": downloadDir,
 			"running":     true,
 		}
 	})
 
-	w.Navigate(fmt.Sprintf("http://localhost:%s/ui/index.html", serverPort))
+	w.Navigate(fmt.Sprintf("http://localhost:%s/ui/index.html", port))
 	w.Run()
 }

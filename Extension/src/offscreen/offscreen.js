@@ -315,6 +315,9 @@ chrome.runtime.onMessage.addListener(async (message) => {
     const mediaRecorder = activeRecorders.get(tabId);
     
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      console.log(`[OFFSCREEN] Requesting final data chunk before stopping for tab ${tabId}`);
+      mediaRecorder.requestData();
+      
       console.log(`[OFFSCREEN] Stopping MediaRecorder for tab ${tabId}`);
       mediaRecorder.stop();
     }
