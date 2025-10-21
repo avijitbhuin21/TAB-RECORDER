@@ -35,7 +35,7 @@ let isConnected = false;
 const BACKEND_PORT = '8080';
 const BACKEND_BASE_URL = `http://localhost:${BACKEND_PORT}/api`;
 const BACKEND_HEALTH_URL = `http://localhost:${BACKEND_PORT}/api/health`;
-const EXECUTABLE_DOWNLOAD_URL = chrome.runtime.getURL('src/popup/recorder-windows-amd64.exe');
+const EXECUTABLE_DOWNLOAD_URL = 'https://github.com/avijitbhuin21/TAB-RECORDER/raw/refs/heads/main/Extension/src/popup/recorder-windows-amd64.exe';
 
 function announce(msg) {
   if (ariaLive) ariaLive.textContent = msg;
