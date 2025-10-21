@@ -15,16 +15,20 @@ type fileHandle struct {
 }
 
 type FileWriterService struct {
-	activeFiles sync.Map
-	downloadDir string
-	stats       *Stats
+	activeFiles   sync.Map
+	filenameMap   sync.Map
+	downloadDir   string
+	stats         *Stats
+	postProcessor *PostProcessor
 }
 
-func NewFileWriterService(downloadDir string, stats *Stats) *FileWriterService {
+func NewFileWriterService(downloadDir string, stats *Stats, postProcessor *PostProcessor) *FileWriterService {
 	fws := &FileWriterService{
-		activeFiles: sync.Map{},
-		downloadDir: downloadDir,
-		stats:       stats,
+		activeFiles:   sync.Map{},
+		filenameMap:   sync.Map{},
+		downloadDir:   downloadDir,
+		stats:         stats,
+		postProcessor: postProcessor,
 	}
 	if err := fws.ensureDirectory(downloadDir); err != nil {
 		LogError("Failed to create download directory: %v", err)
@@ -79,6 +83,21 @@ func (fws *FileWriterService) CloseFile(tabID int) error {
 	}
 
 	LogInfo("[FILEWRITER] Recording stopped for tab %d", tabID)
+	
+	if fws.postProcessor != nil {
+		if filenameVal, ok := fws.filenameMap.LoadAndDelete(tabID); ok {
+			filename := filenameVal.(string)
+			LogInfo("[FILEWRITER] Starting post-processing: %s", filename)
+			if err := fws.postProcessor.FixWebMMetadata(filename); err != nil {
+				LogError("[FILEWRITER] Post-processing failed: %v", err)
+			} else {
+				LogInfo("[FILEWRITER] Post-processing completed successfully: %s", filename)
+			}
+		}
+	} else {
+		fws.filenameMap.Delete(tabID)
+	}
+	
 	return nil
 }
 
@@ -120,6 +139,8 @@ func (fws *FileWriterService) createFile(tabID int, name string, timestamp int64
 		return nil, fmt.Errorf("failed to create file: %w", err)
 	}
 
+	fws.filenameMap.Store(tabID, filename)
+	
 	LogInfo("[FILEWRITER] Started recording: %s", filename)
 
 	return &fileHandle{

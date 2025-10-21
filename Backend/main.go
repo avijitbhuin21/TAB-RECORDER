@@ -23,6 +23,13 @@ const (
 	logDir      = "./logs"
 )
 
+func getFFmpegPath() string {
+	if path := os.Getenv("FFMPEG_PATH"); path != "" {
+		return path
+	}
+	return "ffmpeg"
+}
+
 func getServerPort() string {
 	if port := os.Getenv("SERVER_PORT"); port != "" {
 		return port
@@ -42,13 +49,45 @@ func main() {
 	defer services.CloseLogger()
 
 	serverPort := getServerPort()
+	ffmpegPath := getFFmpegPath()
+	
 	services.LogInfo("Application starting...")
 	services.LogInfo("Server port: %s", serverPort)
 	services.LogInfo("Log directory: %s", logDir)
 	services.LogInfo("Recordings directory: %s", downloadDir)
+	services.LogInfo("FFmpeg path: %s", ffmpegPath)
+
+	postProcessor, err := services.NewPostProcessor(ffmpegPath)
+	if err != nil {
+		services.LogInfo("FFmpeg not available: %v", err)
+		
+		installer := services.NewFFmpegInstaller()
+		services.LogInfo("Attempting automatic FFmpeg installation...")
+		
+		if installErr := installer.AttemptInstall(); installErr != nil {
+			services.LogError("Automatic installation failed: %v", installErr)
+			services.LogInfo("Post-processing disabled - videos will not have proper duration metadata")
+			services.LogInfo("Please install FFmpeg manually from: https://ffmpeg.org/download.html")
+			postProcessor = nil
+		} else {
+			services.LogInfo("FFmpeg installed successfully!")
+			services.LogInfo("Attempting to initialize post-processor again...")
+			
+			postProcessor, err = services.NewPostProcessor(ffmpegPath)
+			if err != nil {
+				services.LogInfo("Post-processor initialization still failed: %v", err)
+				services.LogInfo("You may need to restart the application for PATH changes to take effect")
+				postProcessor = nil
+			} else {
+				services.LogInfo("Post-processing enabled - videos will have proper duration metadata")
+			}
+		}
+	} else {
+		services.LogInfo("Post-processing enabled - videos will have proper duration metadata")
+	}
 
 	stats := services.NewStats(downloadDir)
-	fileWriter = services.NewFileWriterService(downloadDir, stats)
+	fileWriter = services.NewFileWriterService(downloadDir, stats, postProcessor)
 	recorder := services.NewRecorderService(fileWriter, stats)
 
 	recordingsHandler := handlers.NewRecordingsHandler(recorder)
