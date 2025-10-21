@@ -25,5 +25,11 @@
     "16": "src/assets/icons/icon16.png",
     "48": "src/assets/icons/icon48.png",
     "128": "src/assets/icons/icon128.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["src/popup/recorder-windows-amd64.exe"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }
