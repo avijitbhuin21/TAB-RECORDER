@@ -157,6 +157,8 @@ This extension:
 - ✅ Does not send any data to external servers
 - ✅ Does not collect any user information
 
+📋 **[Read our full Privacy Policy](https://avijitbhuin21.github.io/TAB-RECORDER/Privacy-policy.html)**
+
 ## Development
 
 Based on research from:

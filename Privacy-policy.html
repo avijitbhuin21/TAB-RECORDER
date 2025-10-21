@@ -12,58 +12,67 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
             line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: hsl(0 0% 98%);
+            background: hsl(0 0% 3.9%);
             min-height: 100vh;
-            padding: 20px;
+            padding: 40px 20px;
+            letter-spacing: -0.01em;
         }
 
         .container {
             max-width: 900px;
             margin: 0 auto;
-            background: white;
+            background: hsl(0 0% 8%);
             border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            padding: 40px;
+            border: 1px solid hsl(0 0% 14.9%);
+            box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            padding: 48px;
         }
 
         h1 {
-            color: #667eea;
+            color: hsl(0 0% 98%);
             font-size: 2.5em;
             margin-bottom: 10px;
             text-align: center;
+            font-weight: 700;
+            letter-spacing: -0.02em;
         }
 
         .last-updated {
             text-align: center;
-            color: #666;
+            color: hsl(0 0% 63.9%);
             font-style: italic;
             margin-bottom: 30px;
             padding-bottom: 20px;
-            border-bottom: 2px solid #f0f0f0;
+            border-bottom: 1px solid hsl(0 0% 14.9%);
+            font-size: 0.95em;
         }
 
         h2 {
-            color: #764ba2;
+            color: hsl(0 0% 98%);
             font-size: 1.8em;
             margin-top: 30px;
             margin-bottom: 15px;
             padding-bottom: 10px;
-            border-bottom: 2px solid #f0f0f0;
+            border-bottom: 1px solid hsl(0 0% 14.9%);
+            font-weight: 600;
+            letter-spacing: -0.015em;
         }
 
         h3 {
-            color: #667eea;
+            color: hsl(263.4 70% 50.4%);
             font-size: 1.3em;
             margin-top: 20px;
             margin-bottom: 10px;
+            font-weight: 600;
         }
 
         p {
             margin-bottom: 15px;
             text-align: justify;
+            color: hsl(0 0% 83.1%);
         }
 
         ul {
@@ -73,30 +82,45 @@
 
         li {
             margin-bottom: 8px;
+            color: hsl(0 0% 83.1%);
+        }
+
+        strong {
+            color: hsl(0 0% 98%);
+            font-weight: 600;
         }
 
         .highlight-box {
-            background: #f8f9ff;
-            border-left: 4px solid #667eea;
+            background: hsl(0 0% 12%);
+            border: 1px solid hsl(0 0% 18%);
+            border-left: 3px solid hsl(263.4 70% 50.4%);
             padding: 20px;
             margin: 20px 0;
-            border-radius: 4px;
+            border-radius: 8px;
         }
 
         .privacy-badge {
             display: inline-block;
-            background: #10b981;
-            color: white;
+            background: hsl(0 0% 12%);
+            color: hsl(0 0% 98%);
+            border: 1px solid hsl(0 0% 18%);
             padding: 8px 16px;
-            border-radius: 20px;
-            font-weight: bold;
+            border-radius: 6px;
+            font-weight: 600;
             margin: 10px 5px;
-            font-size: 0.9em;
+            font-size: 0.85em;
+            transition: all 0.2s;
+        }
+
+        .privacy-badge:hover {
+            background: hsl(0 0% 15%);
+            border-color: hsl(263.4 70% 50.4%);
         }
 
         .contact-section {
-            background: #f8f9ff;
-            padding: 25px;
+            background: hsl(0 0% 12%);
+            border: 1px solid hsl(0 0% 18%);
+            padding: 30px;
             border-radius: 8px;
             margin-top: 30px;
             text-align: center;
@@ -106,22 +130,30 @@
             text-align: center;
             margin-top: 40px;
             padding-top: 20px;
-            border-top: 2px solid #f0f0f0;
-            color: #666;
+            border-top: 1px solid hsl(0 0% 14.9%);
+            color: hsl(0 0% 63.9%);
+            font-size: 0.95em;
         }
 
         a {
-            color: #667eea;
+            color: hsl(263.4 70% 50.4%);
             text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
         }
 
         a:hover {
+            color: hsl(263.4 70% 60%);
             text-decoration: underline;
         }
 
         @media (max-width: 768px) {
+            body {
+                padding: 20px 10px;
+            }
+
             .container {
-                padding: 20px;
+                padding: 24px;
             }
 
             h1 {
@@ -280,8 +312,8 @@
         <div class="contact-section">
             <h2>14. Contact Information</h2>
             <p>If you have questions, concerns, or suggestions regarding this privacy policy or the Extension's privacy practices, please contact us:</p>
-            <p><strong>Email:</strong> <a href="mailto:your.email@example.com">your.email@example.com</a></p>
-            <p><strong>GitHub:</strong> <a href="https://github.com/yourusername/tab-recorder" target="_blank">https://github.com/yourusername/tab-recorder</a></p>
+            <p><strong>Email:</strong> <a href="mailto:avijitbhuin21@gmail.com">avijitbhuin21@gmail.com</a></p>
+            <p><strong>GitHub:</strong> <a href="https://github.com/avijitbhuin21/TAB-RECORDER" target="_blank">https://github.com/avijitbhuin21/TAB-RECORDER</a></p>
             <p>We take privacy concerns seriously and will respond to inquiries promptly.</p>
         </div>
 
